@@ -1,0 +1,55 @@
+# Reusable CI for Rust crates / workspaces.
+#
+# Runs: cargo fmt --check -> cargo clippy (warnings are errors) -> cargo test.
+#
+# Usage:
+#   jobs:
+#     ci:
+#       uses: L1k4Root/pk-ci-workflows/.github/workflows/rust-ci.yml@v1
+name: rust-ci
+
+on:
+  workflow_call:
+    inputs:
+      toolchain:
+        description: Rust toolchain (stable, beta, nightly or a version such as 1.90).
+        type: string
+        default: stable
+      working-directory:
+        description: Directory that contains Cargo.toml.
+        type: string
+        default: "."
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install toolchain
+        run: |
+          rustup toolchain install ${{ inputs.toolchain }} --profile minimal --component rustfmt,clippy
+          rustup default ${{ inputs.toolchain }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ inputs.working-directory }}
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Test
+        run: cargo test --all-features

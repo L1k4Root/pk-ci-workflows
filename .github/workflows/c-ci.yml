@@ -1,0 +1,59 @@
+# Reusable CI for C projects built with make.
+#
+# Builds and tests twice:
+#   1. with the default flags (what ships), and
+#   2. with AddressSanitizer + UndefinedBehaviorSanitizer, which turns
+#      silent memory bugs into loud test failures.
+#
+# The project's Makefile must provide `all` and `test` targets and honour
+# EXTRA_CFLAGS / EXTRA_LDFLAGS from the environment.
+#
+# Usage:
+#   jobs:
+#     ci:
+#       uses: L1k4Root/pk-ci-workflows/.github/workflows/c-ci.yml@v1
+name: c-ci
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: Directory that contains the Makefile.
+        type: string
+        default: "."
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: release
+            cflags: ""
+            ldflags: ""
+          - name: sanitizers
+            cflags: "-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer"
+            ldflags: "-fsanitize=address,undefined"
+    name: ci (${{ matrix.name }})
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build
+        run: make all
+        env:
+          EXTRA_CFLAGS: ${{ matrix.cflags }}
+          EXTRA_LDFLAGS: ${{ matrix.ldflags }}
+
+      - name: Test
+        run: make test
+        env:
+          EXTRA_CFLAGS: ${{ matrix.cflags }}
+          EXTRA_LDFLAGS: ${{ matrix.ldflags }}

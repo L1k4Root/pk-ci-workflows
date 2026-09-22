@@ -1,0 +1,51 @@
+# Reusable CI for Python projects managed with uv.
+#
+# Runs: uv sync (locked) -> ruff check -> ruff format --check -> pytest.
+#
+# Usage:
+#   jobs:
+#     ci:
+#       uses: L1k4Root/pk-ci-workflows/.github/workflows/python-ci.yml@v1
+name: python-ci
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: Python version to use.
+        type: string
+        default: "3.13"
+      working-directory:
+        description: Directory that contains pyproject.toml.
+        type: string
+        default: "."
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10
+        with:
+          python-version: ${{ inputs.python-version }}
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --locked --all-extras --dev
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format
+        run: uv run ruff format --check .
+
+      - name: Test
+        run: uv run pytest

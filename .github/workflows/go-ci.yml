@@ -1,0 +1,63 @@
+# Reusable CI for Go modules.
+#
+# Runs: gofmt check -> go vet -> go test with the race detector and coverage.
+# Integration tests that need Docker (testcontainers) work out of the box
+# because ubuntu-latest runners ship with a Docker daemon.
+#
+# Usage:
+#   jobs:
+#     ci:
+#       uses: L1k4Root/pk-ci-workflows/.github/workflows/go-ci.yml@v1
+name: go-ci
+
+on:
+  workflow_call:
+    inputs:
+      go-version-file:
+        description: Path to go.mod (the Go version is read from it).
+        type: string
+        default: go.mod
+      working-directory:
+        description: Directory that contains go.mod.
+        type: string
+        default: "."
+      test-flags:
+        description: Extra flags for go test (for example "-tags=integration").
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: ${{ inputs.working-directory }}/${{ inputs.go-version-file }}
+          cache-dependency-path: ${{ inputs.working-directory }}/go.sum
+
+      - name: Format
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::These files are not gofmt-formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race -coverprofile=coverage.out ${{ inputs.test-flags }} ./...
+
+      - name: Coverage summary
+        run: go tool cover -func=coverage.out | tail -n 1 >> "$GITHUB_STEP_SUMMARY"

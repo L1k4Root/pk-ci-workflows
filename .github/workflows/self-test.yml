@@ -1,0 +1,57 @@
+# CI for this repository: lint every workflow, then exercise each reusable
+# workflow against the matching project in examples/.
+name: self-test
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: actionlint
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
+          ./actionlint -color
+
+  node:
+    uses: ./.github/workflows/node-ci.yml
+    with:
+      working-directory: examples/node
+
+  go:
+    uses: ./.github/workflows/go-ci.yml
+    with:
+      working-directory: examples/go
+
+  python:
+    uses: ./.github/workflows/python-ci.yml
+    with:
+      working-directory: examples/python
+
+  rust:
+    uses: ./.github/workflows/rust-ci.yml
+    with:
+      working-directory: examples/rust
+
+  c:
+    uses: ./.github/workflows/c-ci.yml
+    with:
+      working-directory: examples/c
+
+  docker:
+    uses: ./.github/workflows/docker-ci.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      image-name: pk-ci-example
+      context: examples/docker
+      dockerfile: examples/docker/Dockerfile

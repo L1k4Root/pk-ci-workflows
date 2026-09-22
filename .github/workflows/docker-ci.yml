@@ -1,0 +1,119 @@
+# Reusable Docker workflow: build -> smoke test via HEALTHCHECK -> (optionally) push.
+#
+# The image is started exactly as it would be in production and the job waits
+# for Docker to report it "healthy". A container that builds but never becomes
+# healthy is a broken release, so it never reaches the registry.
+#
+# Images are pushed to GitHub Container Registry (ghcr.io/<owner>/<image-name>)
+# only when `push: true`. The calling workflow must grant `packages: write`.
+#
+# Usage:
+#   jobs:
+#     docker:
+#       uses: L1k4Root/pk-ci-workflows/.github/workflows/docker-ci.yml@v1
+#       permissions:
+#         contents: read
+#         packages: write
+#       with:
+#         image-name: my-service
+#         push: ${{ github.ref == 'refs/heads/main' }}
+name: docker-ci
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        description: Image name without registry/owner (for example "payments").
+        type: string
+        required: true
+      context:
+        description: Docker build context.
+        type: string
+        default: "."
+      dockerfile:
+        description: Path to the Dockerfile, relative to the repository root.
+        type: string
+        default: Dockerfile
+      run-args:
+        description: Extra arguments for `docker run` during the smoke test (for example "-e PORT=8080").
+        type: string
+        default: ""
+      health-timeout:
+        description: Seconds to wait for the container to become healthy.
+        type: number
+        default: 60
+      push:
+        description: Push the image to ghcr.io after the smoke test passes.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build (load into local daemon)
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          load: true
+          tags: ${{ inputs.image-name }}:ci
+          cache-from: type=gha,scope=${{ inputs.image-name }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.image-name }}
+
+      - name: Start container
+        run: docker run -d --name smoke ${{ inputs.run-args }} ${{ inputs.image-name }}:ci
+
+      - name: Wait for healthy
+        uses: L1k4Root/pk-ci-workflows/actions/wait-healthy@v1
+        with:
+          container: smoke
+          timeout-seconds: ${{ inputs.health-timeout }}
+
+      - name: Image size
+        run: docker image ls ${{ inputs.image-name }}:ci --format '**Image size:** {{.Size}}' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stop container
+        if: always()
+        run: docker rm -f smoke || true
+
+      - name: Registry metadata
+        if: inputs.push
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ inputs.image-name }}
+          tags: |
+            type=sha
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+
+      - name: Log in to ghcr.io
+        if: inputs.push
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push
+        if: inputs.push
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ inputs.image-name }}

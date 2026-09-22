@@ -1,0 +1,22 @@
+name: wait-healthy
+description: >
+  Wait until a running Docker container reports HEALTHCHECK status "healthy".
+  Fails fast when the container becomes "unhealthy" or exits, and prints its
+  logs so the failure is easy to diagnose.
+
+inputs:
+  container:
+    description: Container name or ID.
+    required: true
+  timeout-seconds:
+    description: Maximum time to wait before failing.
+    default: "60"
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        CONTAINER: ${{ inputs.container }}
+        TIMEOUT: ${{ inputs.timeout-seconds }}
+      run: ${{ github.action_path }}/wait-healthy.sh
