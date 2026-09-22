@@ -122,7 +122,10 @@ CONTAINER=smoke ./actions/wait-healthy/wait-healthy.sh
 
 ## Part of platform-kit
 
-This repository is one of ten building blocks that end up combined in **pk-checkout-platform**:
+This repository is one of ten building blocks combined in
+**[pk-checkout-platform](https://github.com/L1k4Root/pk-checkout-platform)**, a polyglot checkout
+system whose design came from what building these ten taught
+([learnings](https://github.com/L1k4Root/pk-checkout-platform/blob/main/docs/LEARNINGS.md)):
 
 | Repo | Topic |
 |---|---|
@@ -136,6 +139,7 @@ This repository is one of ten building blocks that end up combined in **pk-check
 | [pk-idempotency](https://github.com/L1k4Root/pk-idempotency) | Idempotent payments (Go) |
 | [pk-auth](https://github.com/L1k4Root/pk-auth) | Real authentication (Rust) |
 | [pk-architecture](https://github.com/L1k4Root/pk-architecture) | Documented architecture |
+| **[pk-checkout-platform](https://github.com/L1k4Root/pk-checkout-platform)** | **The integration project: all of the above, composed** |
 
 ## License
 
